@@ -1,22 +1,50 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-let ADMIIN_INSTANCE: SupabaseClient | null = null;
+/**
+ * Builder mode A (recommended):
+ * - ChaiBuilder is UI-only
+ * - All data access MUST go through the Platform API (GNR8)
+ * - Direct Supabase access is disabled by default
+ *
+ * To temporarily allow direct Supabase access (local debugging only), set:
+ *   CHAIBUILDER_ALLOW_DIRECT_SUPABASE=true
+ * and provide the required env vars.
+ */
 
-const checkForEnv = (envVar: string | undefined, name: string) => {
-  if (!envVar) {
-    throw new Error(`Environment variable ${name} is not set`);
+let ADMIN_INSTANCE: SupabaseClient | null = null;
+
+function isDirectSupabaseAllowed(): boolean {
+  const v = process.env.CHAIBUILDER_ALLOW_DIRECT_SUPABASE;
+  return v === "true" || v === "1" || v === "yes";
+}
+
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Environment variable ${name} is not set`);
+  return v;
+}
+
+export const getSupabaseAdmin = (): SupabaseClient => {
+  if (!isDirectSupabaseAllowed()) {
+    throw new Error(
+      [
+        "Direct Supabase ADMIN access is disabled in this Builder deployment.",
+        "Use the GNR8 Platform API instead (Builder mode A).",
+        "",
+        "If you *really* need direct access for local debugging, set:",
+        "  CHAIBUILDER_ALLOW_DIRECT_SUPABASE=true",
+        "and provide:",
+        "  NEXT_PUBLIC_SUPABASE_URL",
+        "  SUPABASE_SECRET_KEY",
+      ].join("\n"),
+    );
   }
-  return envVar;
-};
 
-export const getSupabaseAdmin = () => {
-  checkForEnv(process.env.SUPABASE_SECRET_KEY, "SUPABASE_SECRET_KEY");
-  checkForEnv(process.env.NEXT_PUBLIC_SUPABASE_URL, "NEXT_PUBLIC_SUPABASE_URL");
-  if (ADMIIN_INSTANCE) {
-    return ADMIIN_INSTANCE;
-  }
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY || "";
-  ADMIIN_INSTANCE = createClient(supabaseUrl, supabaseKey);
-  return ADMIIN_INSTANCE;
+  if (ADMIN_INSTANCE) return ADMIN_INSTANCE;
+
+  const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseKey = requireEnv("SUPABASE_SECRET_KEY");
+
+  ADMIN_INSTANCE = createClient(supabaseUrl, supabaseKey);
+  return ADMIN_INSTANCE;
 };
