@@ -1,6 +1,9 @@
 import "@/data/global";
 import { registerPageTypes } from "@/page-types";
-import { ChaiActionsRegistry, initChaiBuilderActionHandler } from "@chaibuilder/next/actions";
+import {
+  ChaiActionsRegistry,
+  initChaiBuilderActionHandler,
+} from "@chaibuilder/next/actions";
 import { createClient } from "@supabase/supabase-js";
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
@@ -8,12 +11,10 @@ import { NextRequest, NextResponse } from "next/server";
 registerPageTypes();
 
 /**
- * In "A mode" we do NOT use Supabase Admin (service role) and we do NOT register
- * SupabaseStorageActions / SupabaseAuthActions here.
- *
- * Instead:
- * - Auth is done via Supabase access token (Bearer) just to identify the user.
- * - Actual data read/write should go through Platform API (we'll add custom actions next).
+ * "A mode":
+ * - Builder is UI-only.
+ * - Auth: Supabase access token (Bearer) ONLY to identify user.
+ * - Data read/write: proxy through GNR8 Platform API via custom actions (next step).
  */
 
 let actionsRegistered = false;
@@ -21,31 +22,45 @@ function ensureActionsRegistered() {
   if (actionsRegistered) return;
 
   // TODO (next step):
-  // Register custom actions that proxy to your GNR8 Platform API,
-  // instead of SupabaseStorageActions / SupabaseAuthActions.
+  // Register custom actions that proxy to your GNR8 Platform API.
   //
   // Example (pseudo):
-  // ChaiActionsRegistry.registerActions(PlatformStorageActions({ baseUrl: ..., internalKey: ... }))
-  // ChaiActionsRegistry.registerActions(PlatformAuthActions({ baseUrl: ..., ... }))
+  // ChaiActionsRegistry.registerActions(PlatformActions({ baseUrl: ..., internalKey: ... }))
 
   actionsRegistered = true;
 }
 
 function getBearerToken(req: NextRequest): string {
   const authorization = req.headers.get("authorization") || "";
-  const parts = authorization.split(" ").map((p) => p.trim()).filter(Boolean);
+  const parts = authorization
+    .split(" ")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
   if (parts.length === 2 && parts[0].toLowerCase() === "bearer") return parts[1];
   return "";
+}
+
+function getRequiredEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is not set`);
+  return v;
 }
 
 async function getUserIdFromBearer(req: NextRequest): Promise<string | null> {
   const token = getBearerToken(req);
   if (!token) return null;
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_URL ||
+    "";
+
+  // Prefer the key you already use in this repo (publishable default),
+  // but allow NEXT_PUBLIC_SUPABASE_ANON_KEY as alias.
   const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     "";
 
   if (!supabaseUrl) {
@@ -53,10 +68,11 @@ async function getUserIdFromBearer(req: NextRequest): Promise<string | null> {
   }
   if (!supabaseAnonKey) {
     throw new Error(
-      "Missing Supabase anon key: set NEXT_PUBLIC_SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY)",
+      "Missing Supabase publishable key: set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)",
     );
   }
 
+  // NOTE: We create a fresh client per request to avoid any cross-request state issues in serverless.
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data?.user?.id) return null;
@@ -64,16 +80,17 @@ async function getUserIdFromBearer(req: NextRequest): Promise<string | null> {
   return data.user.id;
 }
 
+function safeJsonStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "[unstringifiable]";
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.CHAIBUILDER_APP_KEY;
-    if (!apiKey) {
-      console.error("CHAIBUILDER_APP_KEY environment variable is not set.");
-      return NextResponse.json(
-        { error: "Server misconfiguration: CHAIBUILDER_APP_KEY is not set" },
-        { status: 500 },
-      );
-    }
+    const apiKey = getRequiredEnv("CHAIBUILDER_APP_KEY");
 
     ensureActionsRegistered();
 
@@ -83,8 +100,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    // Auth: for now require Bearer token so we can reliably identify the user
-    // (Later we can switch to cookie-based SSR auth if builder shares auth cookies with platform.)
+    // --- DEBUG LOGS (safe, no tokens) ---
+    console.log(
+      "CHAIBUILDER /api request:",
+      safeJsonStringify({
+        hasAuthHeader: Boolean(req.headers.get("authorization")),
+        bodyKeys: Object.keys(body as Record<string, unknown>),
+        action: (body as any)?.action ?? null,
+      }),
+    );
+
+    // Auth: require Bearer token so we can reliably identify the user
     const userId = await getUserIdFromBearer(req);
     if (!userId) {
       return NextResponse.json(
@@ -100,8 +126,23 @@ export async function POST(req: NextRequest) {
 
     const response: any = await handleAction(body);
 
-    // cache tags revalidation (kept from original)
-    if (response && typeof response === "object" && "tags" in response && Array.isArray(response.tags)) {
+    console.log(
+      "CHAIBUILDER /api response:",
+      safeJsonStringify({
+        status: response?.status ?? 200,
+        code: response?.code ?? null,
+        error: response?.error ?? null,
+        hasTags: Array.isArray(response?.tags),
+      }),
+    );
+
+    // Cache tags revalidation (kept from original)
+    if (
+      response &&
+      typeof response === "object" &&
+      "tags" in response &&
+      Array.isArray(response.tags)
+    ) {
       response.tags.forEach((tag: string) => {
         revalidateTag(tag, "max");
       });
@@ -112,7 +153,10 @@ export async function POST(req: NextRequest) {
       const result = response._streamResult;
 
       if (!result?.textStream) {
-        return NextResponse.json({ error: "No streaming response available" }, { status: 500 });
+        return NextResponse.json(
+          { error: "No streaming response available" },
+          { status: 500 },
+        );
       }
 
       const stream = new ReadableStream({
@@ -123,8 +167,8 @@ export async function POST(req: NextRequest) {
               if (chunk) controller.enqueue(encoder.encode(chunk));
             }
             controller.close();
-          } catch (error) {
-            controller.error(error);
+          } catch (e) {
+            controller.error(e);
           }
         },
       });
@@ -140,6 +184,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(response, { status: response?.status ?? 200 });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Internal server error";
+    console.error("CHAIBUILDER /api fatal:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
