@@ -1,6 +1,7 @@
 // app/supabase-server.ts
 import { cookies, headers } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 type CookieToSet = {
   name: string;
@@ -35,20 +36,22 @@ function withSharedDomain(options: CookieOptions, host: string): CookieOptions {
   return { ...options, domain: ".pasadenagenerator.com" };
 }
 
-export async function getSupabaseServerClient() {
+export async function getSupabaseServerClient(): Promise<SupabaseClient> {
   const cookieStore = await cookies();
   const host = await getHost();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  // prefer standard anon key; fallback to "publishable default key"
   const supabaseAnon =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
   if (!supabaseUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
-  if (!supabaseAnon)
+  if (!supabaseAnon) {
     throw new Error(
-      "Missing anon key: set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)",
+      "Missing anon key: set NEXT_PUBLIC_SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY)",
     );
+  }
 
   return createServerClient(supabaseUrl, supabaseAnon, {
     cookies: {
