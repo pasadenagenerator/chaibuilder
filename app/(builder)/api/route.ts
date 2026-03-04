@@ -1,68 +1,30 @@
 import "@/data/global";
 import { registerPageTypes } from "@/page-types";
-import { ChaiActionsRegistry, initChaiBuilderActionHandler } from "@chaibuilder/next/actions";
-import { createClient } from "@supabase/supabase-js";
+import {
+  ChaiActionsRegistry,
+  initChaiBuilderActionHandler,
+} from "@chaibuilder/next/actions";
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseServerClient } from "@/app/supabase-server";
 
 registerPageTypes();
 
 /**
- * A-mode:
- * - No Supabase service-role usage here
- * - We only validate Supabase Bearer token to identify userId
- * - Real data read/write will be proxied to GNR8 Platform API (next step)
+ * A mode:
+ * - Builder UI runs standalone
+ * - Auth MUST come from platform Supabase cookies (shared on .pasadenagenerator.com)
+ * - Data read/write will be proxied via Platform API (custom actions later)
  */
 
 let actionsRegistered = false;
 function ensureActionsRegistered() {
   if (actionsRegistered) return;
 
-  // TODO (next step):
-  // Register custom actions that proxy to GNR8 Platform API.
+  // TODO next: register custom actions that talk to Platform API
+  // ChaiActionsRegistry.registerActions(...)
 
   actionsRegistered = true;
-}
-
-function getBearerToken(req: NextRequest): string {
-  const authorization = req.headers.get("authorization") || "";
-  const parts = authorization
-    .split(" ")
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  if (parts.length === 2 && parts[0].toLowerCase() === "bearer") return parts[1];
-  return "";
-}
-
-function getSupabaseAnonKey(): string {
-  // support both naming conventions (your builder repo uses PUBLISHABLE_DEFAULT_KEY)
-  return (
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY ||
-    ""
-  );
-}
-
-async function getUserIdFromBearer(req: NextRequest): Promise<string | null> {
-  const token = getBearerToken(req);
-  if (!token) return null;
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = getSupabaseAnonKey();
-
-  if (!supabaseUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not set");
-  if (!supabaseAnonKey) {
-    throw new Error(
-      "Missing Supabase anon key: set NEXT_PUBLIC_SUPABASE_ANON_KEY or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY",
-    );
-  }
-
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user?.id) return null;
-
-  return data.user.id;
 }
 
 export async function POST(req: NextRequest) {
@@ -75,51 +37,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse JSON body
+    ensureActionsRegistered();
+
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    // Auth: require Bearer so we can reliably identify the user
-    const userId = await getUserIdFromBearer(req);
-    if (!userId) {
+    // cookie-based auth (shared domain)
+    const supabase = await getSupabaseServerClient();
+    const { data, error } = await supabase.auth.getUser();
+    const userId = data?.user?.id ?? null;
+
+    if (error || !userId) {
       return NextResponse.json(
-        { error: "Not authenticated (missing/invalid Bearer token)" },
+        { error: "Not authenticated (missing Supabase session cookie)" },
         { status: 401 },
       );
     }
 
-    // Minimal smoke-test action (so you can verify /api works end-to-end)
-    // This intentionally bypasses Chai action registry.
-    if ((body as any).action === "ping") {
-      return NextResponse.json(
-        { ok: true, action: "ping", userId },
-        { status: 200 },
-      );
-    }
-
-    // For real builder actions:
-    ensureActionsRegistered();
-
-    const handleAction = initChaiBuilderActionHandler({
-      apiKey,
-      userId,
-    });
-
+    const handleAction = initChaiBuilderActionHandler({ apiKey, userId });
     const response: any = await handleAction(body);
 
-    // cache tags revalidation (kept from original)
-    if (response && typeof response === "object" && Array.isArray(response.tags)) {
-      response.tags.forEach((tag: string) => {
-        revalidateTag(tag, "max");
-      });
+    if (
+      response &&
+      typeof response === "object" &&
+      "tags" in response &&
+      Array.isArray(response.tags)
+    ) {
+      response.tags.forEach((tag: string) => revalidateTag(tag, "max"));
     }
 
-    // Streaming responses (kept from original)
     if (response?._streamingResponse && response?._streamResult) {
       const result = response._streamResult;
-
       if (!result?.textStream) {
         return NextResponse.json(
           { error: "No streaming response available" },
@@ -150,8 +100,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(response, { status: response?.status ?? 200 });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : "Internal server error";
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Internal server error";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

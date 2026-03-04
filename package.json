@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@chaibuilder/next": "^4.0.0-beta.43",
+    "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.90.1",
     "next": "^16.1.6",
     "react": "19.2.3",
