@@ -1,36 +1,59 @@
-export async function platformFetch(
+// app/platform-api.ts
+export type PlatformApiResult<T> = { status: number; body: T }
+
+function getEnv(name: string): string {
+  const v = process.env[name]
+  if (!v) throw new Error(`${name} is not set`)
+  return v
+}
+
+export async function platformFetch<T>(
   path: string,
-  options: RequestInit = {}
-) {
-  const base = process.env.NEXT_PUBLIC_PLATFORM_API_URL;
+  input: {
+    actorUserId: string
+    method?: string
+    body?: any
+  },
+): Promise<PlatformApiResult<T>> {
+  const baseUrl = getEnv('PLATFORM_API_BASE_URL').replace(/\/+$/, '')
+  const key = getEnv('PLATFORM_INTERNAL_API_KEY')
 
-  if (!base) {
-    throw new Error("NEXT_PUBLIC_PLATFORM_API_URL is not set");
-  }
-
-  const res = await fetch(`${base}${path}`, {
-    ...options,
-    credentials: "include", // ključ za auth cookie
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: input.method ?? 'GET',
     headers: {
-      "content-type": "application/json",
-      ...(options.headers || {}),
+      'content-type': 'application/json',
+      'x-gnr8-internal-key': key,
+      'x-actor-user-id': input.actorUserId,
     },
-  });
+    body: input.body ? JSON.stringify(input.body) : undefined,
+    // server-to-server fetch, brez credentials
+  })
 
-  const text = await res.text();
-
-  let json: any;
+  const text = await res.text()
+  let json: any = null
   try {
-    json = JSON.parse(text);
+    json = JSON.parse(text)
   } catch {
-    json = text;
+    json = text
   }
 
-  if (!res.ok) {
-    throw new Error(
-      `Platform API error ${res.status}: ${JSON.stringify(json)}`
-    );
-  }
+  return { status: res.status, body: json as T }
+}
 
-  return json;
+export async function listPages(orgId: string, actorUserId: string) {
+  return platformFetch<{ pages: any[] }>(`/api/builder/orgs/${orgId}/pages`, {
+    actorUserId,
+  })
+}
+
+export async function upsertPage(
+  orgId: string,
+  actorUserId: string,
+  input: { slug: string; title?: string | null; data: any },
+) {
+  return platformFetch<{ page: any }>(`/api/builder/orgs/${orgId}/pages`, {
+    actorUserId,
+    method: 'POST',
+    body: input,
+  })
 }

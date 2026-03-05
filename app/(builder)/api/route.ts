@@ -1,9 +1,6 @@
 import "@/data/global";
 import { registerPageTypes } from "@/page-types";
-import {
-  ChaiActionsRegistry,
-  initChaiBuilderActionHandler,
-} from "@chaibuilder/next/actions";
+import { initChaiBuilderActionHandler } from "@chaibuilder/next/actions";
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/app/supabase-server";
@@ -16,17 +13,13 @@ registerPageTypes();
  * - Builder UI runs standalone
  * - Auth primarily via platform Supabase cookies (shared on .pasadenagenerator.com)
  * - Fallback auth via Authorization: Bearer <access_token> (useful for debugging)
- * - Data read/write will be proxied via Platform API (custom actions later)
+ * - Data read/write goes through Platform API (custom proxy actions)
  */
 
-let actionsRegistered = false;
-function ensureActionsRegistered() {
-  if (actionsRegistered) return;
-
-  // TODO next: register custom actions that talk to Platform API
-  // ChaiActionsRegistry.registerActions(...)
-
-  actionsRegistered = true;
+function getEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is not set`);
+  return v;
 }
 
 function getBearerToken(req: NextRequest): string {
@@ -39,7 +32,9 @@ function getBearerToken(req: NextRequest): string {
   return "";
 }
 
-async function getUserIdFromCookieOrBearer(req: NextRequest): Promise<{
+async function getUserIdFromCookieOrBearer(
+  req: NextRequest,
+): Promise<{
   userId: string | null;
   mode: "cookie" | "bearer" | null;
   error?: string;
@@ -96,6 +91,34 @@ async function getUserIdFromCookieOrBearer(req: NextRequest): Promise<{
   return { userId: bearerUserId, mode: "bearer" };
 }
 
+async function platformFetch<T>(
+  path: string,
+  input: { actorUserId: string; method?: string; body?: any },
+): Promise<{ status: number; body: T }> {
+  const baseUrl = getEnv("PLATFORM_API_BASE_URL").replace(/\/+$/, "");
+  const internalKey = getEnv("PLATFORM_INTERNAL_API_KEY");
+
+  const res = await fetch(`${baseUrl}${path}`, {
+    method: input.method ?? "GET",
+    headers: {
+      "content-type": "application/json",
+      "x-gnr8-internal-key": internalKey,
+      "x-actor-user-id": input.actorUserId,
+    },
+    body: input.body ? JSON.stringify(input.body) : undefined,
+  });
+
+  const text = await res.text();
+  let json: any = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = text;
+  }
+
+  return { status: res.status, body: json as T };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.CHAIBUILDER_APP_KEY;
@@ -106,20 +129,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    ensureActionsRegistered();
-
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
-
-    // mini ping (for smoke test)
-    if ((body as any).action === "ping") {
-      const auth = await getUserIdFromCookieOrBearer(req);
-      if (!auth.userId) {
-        return NextResponse.json({ error: auth.error ?? "Not authenticated" }, { status: 401 });
-      }
-      return NextResponse.json({ ok: true, userId: auth.userId, mode: auth.mode });
     }
 
     const auth = await getUserIdFromCookieOrBearer(req);
@@ -127,15 +139,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: auth.error ?? "Not authenticated" }, { status: 401 });
     }
 
+    // Smoke test
+    if ((body as any).action === "ping") {
+      return NextResponse.json({ ok: true, userId: auth.userId, mode: auth.mode });
+    }
+
+    // ---- Platform Pages proxy actions (our integration point) ----
+    if ((body as any).action === "platform.pages.list") {
+      const orgId = String((body as any).orgId ?? "").trim();
+      if (!orgId) return NextResponse.json({ error: "orgId is required" }, { status: 400 });
+
+      const r = await platformFetch<{ pages: any[] }>(`/api/builder/orgs/${orgId}/pages`, {
+        actorUserId: auth.userId,
+      });
+
+      return NextResponse.json(r.body, { status: r.status });
+    }
+
+    if ((body as any).action === "platform.pages.upsert") {
+      const orgId = String((body as any).orgId ?? "").trim();
+      const slug = String((body as any).slug ?? "").trim();
+      const title = (body as any).title ?? null;
+      const data = (body as any).data ?? null;
+
+      if (!orgId) return NextResponse.json({ error: "orgId is required" }, { status: 400 });
+      if (!slug) return NextResponse.json({ error: "slug is required" }, { status: 400 });
+      if (data === null || data === undefined)
+        return NextResponse.json({ error: "data is required" }, { status: 400 });
+
+      const r = await platformFetch<{ page: any }>(`/api/builder/orgs/${orgId}/pages`, {
+        actorUserId: auth.userId,
+        method: "POST",
+        body: { slug, title, data },
+      });
+
+      return NextResponse.json(r.body, { status: r.status });
+    }
+
+    // ---- Fallback: let Chai handle its own actions ----
     const handleAction = initChaiBuilderActionHandler({ apiKey, userId: auth.userId });
     const response: any = await handleAction(body);
 
-    if (
-      response &&
-      typeof response === "object" &&
-      "tags" in response &&
-      Array.isArray(response.tags)
-    ) {
+    if (response && typeof response === "object" && Array.isArray(response.tags)) {
       response.tags.forEach((tag: string) => revalidateTag(tag, "max"));
     }
 
