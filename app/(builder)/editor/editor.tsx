@@ -1,8 +1,7 @@
 "use client";
 
 import { getSupabaseClient } from "@/app/supabase-client";
-import { registerCustomBlocks } from "@/blocks";
-import { registerFonts } from "@/fonts";
+import { registerCustomBlocks, registerFonts } from "@gnr8/chai-renderer";
 import { ChaiWebsiteBuilder, defaultChaiLibrary } from "@chaibuilder/next";
 import { registerChaiLibrary } from "@chaibuilder/next/runtime-client";
 import type { ChaiLoggedInUser } from "@chaibuilder/next/types";

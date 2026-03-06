@@ -1,5 +1,5 @@
 import "@/data/global";
-import { registerPageTypes } from "@/page-types";
+import { registerPageTypes } from "@gnr8/chai-renderer";
 import { initChaiBuilderActionHandler } from "@chaibuilder/next/actions";
 import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";

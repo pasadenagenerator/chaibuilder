@@ -1,7 +1,9 @@
-import { registerCustomBlocks } from "@/blocks";
 import "@/data/global";
-import { registerFonts } from "@/fonts";
-import { registerPageTypes } from "@/page-types";
+import {
+  registerCustomBlocks,
+  registerFonts,
+  registerPageTypes,
+} from "@gnr8/chai-renderer";
 import {
   ChaiBuilder,
   ChaiPageStyles,
