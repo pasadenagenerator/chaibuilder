@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@chaibuilder/next':
-        specifier: ^4.0.0-beta.43
+        specifier: ^4.0.0-beta.45
         version: 4.0.0-beta.45(@babel/core@7.28.6)(@babel/template@7.28.6)(@emotion/is-prop-valid@1.4.0)(@opentelemetry/api@1.9.0)(@supabase/supabase-js@2.90.1)(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@types/mdast@4.0.4)(@types/node@20.19.30)(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(micromark-util-types@2.0.2)(micromark@4.0.2)(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-konva@19.2.1(@types/react@19.2.8)(konva@9.3.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(styled-components@6.3.8(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(tailwindcss@3.4.19)(typescript@5.9.3)(zod@4.3.5)
       '@gnr8/chai-renderer':
-        specifier: github:pasadenagenerator/GNR8#main
-        version: gnr8-platform@git+https://github.com/pasadenagenerator/GNR8.git#06486f71885edfd76226dcf1019153bbb6cfdd11(@supabase/supabase-js@2.90.1)(@types/node@20.19.30)
+        specifier: github:pasadenagenerator/gnr8-chai-renderer#main
+        version: https://codeload.github.com/pasadenagenerator/gnr8-chai-renderer/tar.gz/af9e02c6a08b09c1adbf3a8995d2bb3ddeec8b2c(@chaibuilder/next@4.0.0-beta.45(@babel/core@7.28.6)(@babel/template@7.28.6)(@emotion/is-prop-valid@1.4.0)(@opentelemetry/api@1.9.0)(@supabase/supabase-js@2.90.1)(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@types/mdast@4.0.4)(@types/node@20.19.30)(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(micromark-util-types@2.0.2)(micromark@4.0.2)(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-konva@19.2.1(@types/react@19.2.8)(konva@9.3.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(styled-components@6.3.8(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(tailwindcss@3.4.19)(typescript@5.9.3)(zod@4.3.5))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@radix-ui/react-icons':
         specifier: ^1.3.2
         version: 1.3.2(react@19.2.3)
@@ -298,6 +298,14 @@ packages:
 
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
+
+  '@gnr8/chai-renderer@https://codeload.github.com/pasadenagenerator/gnr8-chai-renderer/tar.gz/af9e02c6a08b09c1adbf3a8995d2bb3ddeec8b2c':
+    resolution: {tarball: https://codeload.github.com/pasadenagenerator/gnr8-chai-renderer/tar.gz/af9e02c6a08b09c1adbf3a8995d2bb3ddeec8b2c}
+    version: 0.0.1
+    peerDependencies:
+      '@chaibuilder/next': ^4.0.0-beta.45
+      react: ^18 || ^19
+      react-dom: ^18 || ^19
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -1305,11 +1313,6 @@ packages:
   '@supabase/realtime-js@2.90.1':
     resolution: {integrity: sha512-PWbnEMkcQRuor8jhObp4+Snufkq8C6fBp+MchVp2qBPY1NXk/c3Iv3YyiFYVzo0Dzuw4nAlT4+ahuPggy4r32w==}
     engines: {node: '>=20.0.0'}
-
-  '@supabase/ssr@0.8.0':
-    resolution: {integrity: sha512-/PKk8kNFSs8QvvJ2vOww1mF5/c5W8y42duYtXvkOSe+yZKRgTTZywYG2l41pjhNomqESZCpZtXuWmYjFRMV+dw==}
-    peerDependencies:
-      '@supabase/supabase-js': ^2.76.1
 
   '@supabase/ssr@0.9.0':
     resolution: {integrity: sha512-UFY6otYV3yqCgV+AyHj80vNkTvbf1Gas2LW4dpbQ4ap6p6v3eB2oaDfcI99jsuJzwVBCFU4BJI+oDYyhNk1z0Q==}
@@ -2929,10 +2932,6 @@ packages:
     resolution: {integrity: sha512-DpLKbNU4WylpxJykQujfCcwYWiV/Jhm50Goo0wrVILAv5jOr9d+H+UR3PhSCD2rCCEIg0uc+G+muBTwD54JhDQ==}
     engines: {node: '>= 0.4'}
 
-  gnr8-platform@git+https://github.com/pasadenagenerator/GNR8.git#06486f71885edfd76226dcf1019153bbb6cfdd11:
-    resolution: {commit: 06486f71885edfd76226dcf1019153bbb6cfdd11, repo: https://github.com/pasadenagenerator/GNR8.git, type: git}
-    version: 0.0.0
-
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
@@ -3971,10 +3970,6 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
-  qs@6.15.0:
-    resolution: {integrity: sha512-mAZTtNCeetKMH+pSjrb76NAM8V9a05I9aBZOHztWy/UqcJdQYNsf59vrRKWnojAT9Y+GbIvoTBC++CPHqpDBhQ==}
-    engines: {node: '>=0.6'}
-
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
 
@@ -4420,15 +4415,6 @@ packages:
   strip-json-comments@3.1.1:
     resolution: {integrity: sha512-6fPc+R4ihwqP6N/aIv2f1gMH8lOVtWQHoqC4yK6oSDVVocumAsfCqjkXnqiYMhmMwS/mEHLp7Vehlt3ql6lEig==}
     engines: {node: '>=8'}
-
-  stripe@18.5.0:
-    resolution: {integrity: sha512-Hp+wFiEQtCB0LlNgcFh5uVyKznpDjzyUZ+CNVEf+I3fhlYvh7rZruIg+jOwzJRCpy0ZTPMjlzm7J2/M2N6d+DA==}
-    engines: {node: '>=12.*'}
-    peerDependencies:
-      '@types/node': '>=12.x.x'
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
 
   style-to-js@1.1.21:
     resolution: {integrity: sha512-RjQetxJrrUJLQPHbLku6U/ocGtzyjbJMP9lCNK7Ag0CNh690nSH8woqWH9u16nMjYBAok+i7JO1NP2pOy8IsPQ==}
@@ -5217,6 +5203,12 @@ snapshots:
       react-dom: 19.2.3(react@19.2.3)
 
   '@floating-ui/utils@0.2.10': {}
+
+  '@gnr8/chai-renderer@https://codeload.github.com/pasadenagenerator/gnr8-chai-renderer/tar.gz/af9e02c6a08b09c1adbf3a8995d2bb3ddeec8b2c(@chaibuilder/next@4.0.0-beta.45(@babel/core@7.28.6)(@babel/template@7.28.6)(@emotion/is-prop-valid@1.4.0)(@opentelemetry/api@1.9.0)(@supabase/supabase-js@2.90.1)(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@types/mdast@4.0.4)(@types/node@20.19.30)(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(micromark-util-types@2.0.2)(micromark@4.0.2)(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-konva@19.2.1(@types/react@19.2.8)(konva@9.3.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(styled-components@6.3.8(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(tailwindcss@3.4.19)(typescript@5.9.3)(zod@4.3.5))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@chaibuilder/next': 4.0.0-beta.45(@babel/core@7.28.6)(@babel/template@7.28.6)(@emotion/is-prop-valid@1.4.0)(@opentelemetry/api@1.9.0)(@supabase/supabase-js@2.90.1)(@tiptap/core@2.27.2(@tiptap/pm@2.27.2))(@types/mdast@4.0.4)(@types/node@20.19.30)(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(micromark-util-types@2.0.2)(micromark@4.0.2)(next@16.1.6(@babel/core@7.28.6)(@opentelemetry/api@1.9.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-konva@19.2.1(@types/react@19.2.8)(konva@9.3.6)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(styled-components@6.3.8(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(tailwindcss@3.4.19)(typescript@5.9.3)(zod@4.3.5)
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   '@humanfs/core@0.19.1': {}
 
@@ -6209,11 +6201,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-
-  '@supabase/ssr@0.8.0(@supabase/supabase-js@2.90.1)':
-    dependencies:
-      '@supabase/supabase-js': 2.90.1
-      cookie: 1.1.1
 
   '@supabase/ssr@0.9.0(@supabase/supabase-js@2.90.1)':
     dependencies:
@@ -7951,14 +7938,6 @@ snapshots:
       define-properties: 1.2.1
       gopd: 1.2.0
 
-  gnr8-platform@git+https://github.com/pasadenagenerator/GNR8.git#06486f71885edfd76226dcf1019153bbb6cfdd11(@supabase/supabase-js@2.90.1)(@types/node@20.19.30):
-    dependencies:
-      '@supabase/ssr': 0.8.0(@supabase/supabase-js@2.90.1)
-      stripe: 18.5.0(@types/node@20.19.30)
-    transitivePeerDependencies:
-      - '@supabase/supabase-js'
-      - '@types/node'
-
   gopd@1.2.0: {}
 
   hachure-fill@0.5.2: {}
@@ -9312,10 +9291,6 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  qs@6.15.0:
-    dependencies:
-      side-channel: 1.1.0
-
   queue-microtask@1.2.3: {}
 
   quick-lru@5.1.1: {}
@@ -9918,12 +9893,6 @@ snapshots:
   strip-bom@3.0.0: {}
 
   strip-json-comments@3.1.1: {}
-
-  stripe@18.5.0(@types/node@20.19.30):
-    dependencies:
-      qs: 6.15.0
-    optionalDependencies:
-      '@types/node': 20.19.30
 
   style-to-js@1.1.21:
     dependencies:
