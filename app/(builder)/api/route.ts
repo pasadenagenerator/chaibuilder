@@ -43,6 +43,10 @@ function getAction(req: NextRequest, body: any): string {
   return bodyAction || queryAction;
 }
 
+function getActionUpper(req: NextRequest, body: any): string {
+  return getAction(req, body).toUpperCase();
+}
+
 function getOrgIdFromBody(body: any): string {
   const org =
     body?.orgId ??
@@ -72,6 +76,7 @@ function getTitleFromBody(body: any): string | null {
     body?.title ??
     body?.name ??
     body?.pageTitle ??
+    body?.data?.title ??
     null;
 
   if (value === null || value === undefined) return null;
@@ -95,7 +100,6 @@ async function getUserIdFromCookieOrBearer(
   mode: "cookie" | "bearer" | null;
   error?: string;
 }> {
-  // 1) cookie-based session (preferred)
   const supabaseCookie = await getSupabaseServerClient();
   const cookieRes = await supabaseCookie.auth.getUser();
   const cookieUserId = cookieRes.data?.user?.id ?? null;
@@ -104,7 +108,6 @@ async function getUserIdFromCookieOrBearer(
     return { userId: cookieUserId, mode: "cookie" };
   }
 
-  // 2) bearer fallback
   const token = getBearerToken(req);
   if (!token) {
     return {
@@ -206,9 +209,9 @@ export async function POST(req: NextRequest) {
     }
 
     const action = getAction(req, body);
+    const actionUpper = getActionUpper(req, body);
 
-    // Smoke test
-    if (action === "ping") {
+    if (actionUpper === "PING") {
       return NextResponse.json({
         ok: true,
         userId: auth.userId,
@@ -216,8 +219,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Chai access check
-    if (action === "CHECK_USER_ACCESS") {
+    if (actionUpper === "CHECK_USER_ACCESS") {
       return NextResponse.json(
         {
           ok: true,
@@ -231,8 +233,6 @@ export async function POST(req: NextRequest) {
         { status: 200 },
       );
     }
-
-    // ---- Platform Pages proxy actions ----
 
     if (action === "platform.pages.list") {
       const orgId = getOrgIdFromBody(body);
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(r.body, { status: r.status });
     }
 
-    if (action === "platform.pages.get" || action === "get_page") {
+    if (action === "platform.pages.get" || actionUpper === "GET_PAGE") {
       const orgId = getOrgIdFromBody(body);
       const slug = getSlugFromBody(body);
 
@@ -299,8 +299,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(r.body, { status: r.status });
     }
 
-    // Compatibility with default Chai save action
-    if (action === "update_page") {
+    if (actionUpper === "UPDATE_PAGE") {
       const orgId = getOrgIdFromBody(body);
       const slug = getSlugFromBody(body);
       const title = getTitleFromBody(body);
@@ -334,7 +333,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ---- Fallback: let Chai handle its own actions ----
     const handleAction = initChaiBuilderActionHandler({
       apiKey,
       userId: auth.userId,
