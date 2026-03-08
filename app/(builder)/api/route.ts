@@ -8,14 +8,6 @@ import { createClient } from "@supabase/supabase-js";
 
 registerPageTypes();
 
-/**
- * A mode:
- * - Builder UI runs standalone
- * - Auth primarily via platform Supabase cookies (shared on .pasadenagenerator.com)
- * - Fallback auth via Authorization: Bearer <access_token> (useful for debugging)
- * - Data read/write goes through Platform API (custom proxy actions)
- */
-
 function getEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} is not set`);
@@ -37,8 +29,7 @@ function getBearerToken(req: NextRequest): string {
 }
 
 function getAction(req: NextRequest, body: any): string {
-  const bodyAction =
-    typeof body?.action === "string" ? body.action.trim() : "";
+  const bodyAction = typeof body?.action === "string" ? body.action.trim() : "";
   const queryAction = req.nextUrl.searchParams.get("action")?.trim() || "";
   return bodyAction || queryAction;
 }
@@ -84,13 +75,7 @@ function getTitleFromBody(body: any): string | null {
 }
 
 function getDataFromBody(body: any): any {
-  return (
-    body?.data ??
-    body?.page ??
-    body?.pageData ??
-    body?.payload ??
-    null
-  );
+  return body?.data ?? body?.page ?? body?.pageData ?? body?.payload ?? null;
 }
 
 async function getUserIdFromCookieOrBearer(
@@ -330,6 +315,19 @@ export async function POST(req: NextRequest) {
           ...(typeof r.body === "object" && r.body !== null ? r.body : {}),
         },
         { status: r.status },
+      );
+    }
+
+    if (actionUpper === "PUBLISH_CHANGES") {
+      return NextResponse.json(
+        {
+          ok: true,
+          success: true,
+          published: true,
+          ids: body?.data?.ids ?? [],
+          revisions: body?.data?.revisions ?? false,
+        },
+        { status: 200 },
       );
     }
 
