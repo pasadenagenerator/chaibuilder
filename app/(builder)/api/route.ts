@@ -36,6 +36,57 @@ function getBearerToken(req: NextRequest): string {
   return "";
 }
 
+function getAction(req: NextRequest, body: any): string {
+  const bodyAction =
+    typeof body?.action === "string" ? body.action.trim() : "";
+  const queryAction = req.nextUrl.searchParams.get("action")?.trim() || "";
+  return bodyAction || queryAction;
+}
+
+function getOrgIdFromBody(body: any): string {
+  return String(
+    body?.orgId ??
+      body?.organizationId ??
+      body?.org_id ??
+      process.env.NEXT_PUBLIC_DEFAULT_ORG_ID ??
+      "",
+  ).trim();
+}
+
+function getSlugFromBody(body: any): string {
+  const raw = String(
+    body?.slug ??
+      body?.path ??
+      body?.pageSlug ??
+      body?.page_path ??
+      "/",
+  ).trim();
+
+  if (!raw) return "/";
+  return raw.startsWith("/") ? raw : `/${raw}`;
+}
+
+function getTitleFromBody(body: any): string | null {
+  const value =
+    body?.title ??
+    body?.name ??
+    body?.pageTitle ??
+    null;
+
+  if (value === null || value === undefined) return null;
+  return String(value);
+}
+
+function getDataFromBody(body: any): any {
+  return (
+    body?.data ??
+    body?.page ??
+    body?.pageData ??
+    body?.payload ??
+    null
+  );
+}
+
 async function getUserIdFromCookieOrBearer(
   req: NextRequest,
 ): Promise<{
@@ -153,8 +204,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const action = getAction(req, body);
+
     // Smoke test
-    if ((body as any).action === "ping") {
+    if (action === "ping") {
       return NextResponse.json({
         ok: true,
         userId: auth.userId,
@@ -163,7 +216,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Chai access check
-    if ((body as any).action === "CHECK_USER_ACCESS") {
+    if (action === "CHECK_USER_ACCESS") {
       return NextResponse.json(
         {
           ok: true,
@@ -179,8 +232,9 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- Platform Pages proxy actions ----
-    if ((body as any).action === "platform.pages.list") {
-      const orgId = String((body as any).orgId ?? "").trim();
+
+    if (action === "platform.pages.list") {
+      const orgId = getOrgIdFromBody(body);
 
       if (!orgId) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
@@ -196,11 +250,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(r.body, { status: r.status });
     }
 
-    if ((body as any).action === "platform.pages.upsert") {
-      const orgId = String((body as any).orgId ?? "").trim();
-      const slug = String((body as any).slug ?? "").trim();
-      const title = (body as any).title ?? null;
-      const data = (body as any).data ?? null;
+    if (action === "platform.pages.get" || action === "get_page") {
+      const orgId = getOrgIdFromBody(body);
+      const slug = getSlugFromBody(body);
+
+      if (!orgId) {
+        return NextResponse.json({ error: "orgId is required" }, { status: 400 });
+      }
+
+      const r = await platformFetch<{ page: any }>(
+        `/api/builder/orgs/${orgId}/pages/${encodeURIComponent(slug)}`,
+        {
+          actorUserId: auth.userId,
+        },
+      );
+
+      return NextResponse.json(r.body, { status: r.status });
+    }
+
+    if (action === "platform.pages.upsert") {
+      const orgId = getOrgIdFromBody(body);
+      const slug = getSlugFromBody(body);
+      const title = getTitleFromBody(body);
+      const data = getDataFromBody(body);
 
       if (!orgId) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
@@ -226,22 +298,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(r.body, { status: r.status });
     }
 
-    if ((body as any).action === "platform.pages.get") {
-      const orgId = String((body as any).orgId ?? "").trim();
-      const slug = String((body as any).slug ?? "").trim() || "/";
+    // Compatibility with default Chai save action
+    if (action === "update_page") {
+      const orgId = getOrgIdFromBody(body);
+      const slug = getSlugFromBody(body);
+      const title = getTitleFromBody(body);
+      const data = getDataFromBody(body);
 
       if (!orgId) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
       }
 
+      if (data === null || data === undefined) {
+        return NextResponse.json({ error: "data is required" }, { status: 400 });
+      }
+
       const r = await platformFetch<{ page: any }>(
-        `/api/builder/orgs/${orgId}/pages/${encodeURIComponent(slug)}`,
+        `/api/builder/orgs/${orgId}/pages`,
         {
           actorUserId: auth.userId,
+          method: "POST",
+          body: { slug, title, data },
         },
       );
 
-      return NextResponse.json(r.body, { status: r.status });
+      return NextResponse.json(
+        {
+          ok: r.status >= 200 && r.status < 300,
+          success: r.status >= 200 && r.status < 300,
+          page: (r.body as any)?.page ?? null,
+          ...(typeof r.body === "object" && r.body !== null ? r.body : {}),
+        },
+        { status: r.status },
+      );
     }
 
     // ---- Fallback: let Chai handle its own actions ----
