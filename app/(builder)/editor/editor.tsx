@@ -14,23 +14,29 @@ registerFonts();
 
 const supabase = getSupabaseClient();
 
+const mapSessionUserToChaiUser = (sessionUser: any): ChaiLoggedInUser =>
+  ({
+    id: sessionUser.id,
+    email: sessionUser.email,
+    name:
+      sessionUser.user_metadata?.name ||
+      sessionUser.user_metadata?.full_name ||
+      sessionUser.email,
+    role: sessionUser.user_metadata?.role || "admin",
+  }) as ChaiLoggedInUser;
+
 export default function Editor() {
   const [isLoggedIn, setIsLoggedIn] = useState<null | boolean>(null);
   const [user, setUser] = useState<ChaiLoggedInUser | null>(null);
+
   useEffect(() => {
-    // Check initial session
     const checkInitialSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
       if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.user_metadata.name,
-          role: session.user.user_metadata.role,
-        } as ChaiLoggedInUser);
+        setUser(mapSessionUserToChaiUser(session.user));
         setIsLoggedIn(true);
       } else {
         setIsLoggedIn(false);
@@ -39,21 +45,15 @@ export default function Editor() {
 
     checkInitialSession();
 
-    // Listen to auth state changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (user?.id && session?.user) {
-        //already logged in
         return;
       }
+
       if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email,
-          name: session.user.user_metadata.name,
-          role: session.user.user_metadata.role,
-        } as ChaiLoggedInUser);
+        setUser(mapSessionUserToChaiUser(session.user));
         setIsLoggedIn(true);
       } else {
         setUser(null);
@@ -61,23 +61,19 @@ export default function Editor() {
       }
     });
 
-    // Cleanup subscription on unmount
     return () => {
       subscription.unsubscribe();
     };
   }, [user?.id]);
 
-  const handleLogout = useCallback(
-    async (reason?: string) => {
-      await supabase.auth.signOut();
-      if (reason) {
-        window.location.href = `/editor?${reason.toLowerCase()}=true`;
-      } else {
-        window.location.reload();
-      }
-    },
-    [supabase],
-  );
+  const handleLogout = useCallback(async (reason?: string) => {
+    await supabase.auth.signOut();
+    if (reason) {
+      window.location.href = `/editor?${reason.toLowerCase()}=true`;
+    } else {
+      window.location.reload();
+    }
+  }, []);
 
   const getAccessToken = useCallback(async () => {
     const {
@@ -86,22 +82,14 @@ export default function Editor() {
     return session?.access_token as string;
   }, []);
 
-  const getPreviewUrl = useCallback(
-    (slug: string) => `/api/preview?slug=${slug}`,
-    [],
-  );
+  const getPreviewUrl = useCallback((slug: string) => `/api/preview?slug=${slug}`, []);
   const getLiveUrl = useCallback(
     (slug: string) => `/api/preview?disable=true&slug=${slug}`,
     [],
   );
 
-  if (isLoggedIn === null) {
-    return null;
-  }
-
-  if (!isLoggedIn) {
-    return <LoginScreen />;
-  }
+  if (isLoggedIn === null) return null;
+  if (!isLoggedIn) return <LoginScreen />;
 
   return (
     <ChaiWebsiteBuilder
