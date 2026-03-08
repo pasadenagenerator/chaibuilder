@@ -44,13 +44,14 @@ function getAction(req: NextRequest, body: any): string {
 }
 
 function getOrgIdFromBody(body: any): string {
-  return String(
+  const org =
     body?.orgId ??
-      body?.organizationId ??
-      body?.org_id ??
-      process.env.NEXT_PUBLIC_DEFAULT_ORG_ID ??
-      "",
-  ).trim();
+    body?.organizationId ??
+    body?.org_id ??
+    body?.org ??
+    process.env.NEXT_PUBLIC_DEFAULT_ORG_ID;
+
+  return org ? String(org).trim() : "";
 }
 
 function getSlugFromBody(body: any): string {
