@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 let CLIENT_INSTANCE: SupabaseClient | null = null;
 
@@ -16,7 +17,26 @@ function isDirectSupabaseAllowed(): boolean {
   );
 }
 
-export const getSupabaseClient = () => {
+function getCookieDomainForCurrentHost(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  const host = window.location.hostname;
+
+  const isLocal =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host.endsWith(".localhost");
+
+  const isPasadena =
+    host === "pasadenagenerator.com" ||
+    host.endsWith(".pasadenagenerator.com");
+
+  if (isLocal || !isPasadena) return undefined;
+
+  return ".pasadenagenerator.com";
+}
+
+export const getSupabaseClient = (): SupabaseClient => {
   if (!isDirectSupabaseAllowed()) {
     throw new Error(`Direct Supabase CLIENT access is disabled in this Builder deployment.
 Use the GNR8 Platform API instead (Builder mode A).
@@ -42,8 +62,13 @@ and provide:
   const supabaseKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY || "";
 
-  CLIENT_INSTANCE = createClient(supabaseUrl, supabaseKey, {
-    realtime: { worker: true },
+  CLIENT_INSTANCE = createBrowserClient(supabaseUrl, supabaseKey, {
+    cookieOptions: {
+      domain: getCookieDomainForCurrentHost(),
+      path: "/",
+      sameSite: "lax",
+      secure: true,
+    },
   });
 
   return CLIENT_INSTANCE;
