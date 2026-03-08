@@ -176,6 +176,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(r.body, { status: r.status });
     }
 
+
+    if ((body as any).action === "platform.pages.get") {
+  const orgId = String((body as any).orgId ?? "").trim();
+  const slug = String((body as any).slug ?? "").trim() || "/";
+
+  if (!orgId) {
+    return NextResponse.json({ error: "orgId is required" }, { status: 400 });
+  }
+
+  const r = await platformFetch<{ page: any }>(
+    `/api/builder/orgs/${orgId}/pages/${encodeURIComponent(slug)}`,
+    {
+      actorUserId: auth.userId,
+    },
+  );
+
+  return NextResponse.json(r.body, { status: r.status });
+}
+
+
     // ---- Fallback: let Chai handle its own actions ----
     const handleAction = initChaiBuilderActionHandler({ apiKey, userId: auth.userId });
     const response: any = await handleAction(body);
