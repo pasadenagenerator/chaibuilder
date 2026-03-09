@@ -8,6 +8,16 @@ import { createClient } from "@supabase/supabase-js";
 
 registerPageTypes();
 
+type PlatformPage = {
+  id: string;
+  orgId: string;
+  slug: string;
+  title: string | null;
+  data: any;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 function getEnv(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`${name} is not set`);
@@ -49,6 +59,18 @@ function getOrgIdFromBody(body: any): string {
   return org ? String(org).trim() : "";
 }
 
+function getBuilderPageIdFromBody(body: any): string {
+  const id =
+    body?.id ??
+    body?.pageId ??
+    body?.data?.id ??
+    body?.page?.id ??
+    body?.pageData?.id ??
+    "";
+
+  return id ? String(id).trim() : "";
+}
+
 function getSlugFromBody(body: any): string {
   const raw = String(
     body?.slug ??
@@ -78,6 +100,18 @@ function getTitleFromBody(body: any): string | null {
 
 function getDataFromBody(body: any): any {
   return body?.data ?? body?.page ?? body?.pageData ?? body?.payload ?? null;
+}
+
+function normalizePageData(data: any): any {
+  const d = data && typeof data === "object" ? data : {};
+  return {
+    ...d,
+    id: d.id ?? crypto.randomUUID(),
+    pageType: d.pageType ?? "page",
+    lang: d.lang ?? "en",
+    fallbackLang: d.fallbackLang ?? "en",
+    blocks: Array.isArray(d.blocks) ? d.blocks : [],
+  };
 }
 
 async function getUserIdFromCookieOrBearer(
@@ -172,6 +206,42 @@ async function platformFetch<T>(
   return { status: res.status, body: json as T };
 }
 
+async function listPages(orgId: string, actorUserId: string): Promise<PlatformPage[]> {
+  const r = await platformFetch<{ pages: PlatformPage[] }>(
+    `/api/builder/orgs/${orgId}/pages`,
+    { actorUserId },
+  );
+
+  if (r.status < 200 || r.status >= 300) {
+    return [];
+  }
+
+  return Array.isArray(r.body?.pages) ? r.body.pages : [];
+}
+
+async function resolveExistingPage(
+  orgId: string,
+  actorUserId: string,
+  body: any,
+): Promise<PlatformPage | null> {
+  const builderPageId = getBuilderPageIdFromBody(body);
+  const wantedSlug = getSlugFromBody(body);
+
+  const pages = await listPages(orgId, actorUserId);
+
+  if (builderPageId) {
+    const byBuilderId = pages.find((p) => String(p?.data?.id ?? "").trim() === builderPageId);
+    if (byBuilderId) return byBuilderId;
+  }
+
+  if (wantedSlug) {
+    const bySlug = pages.find((p) => p.slug === wantedSlug);
+    if (bySlug) return bySlug;
+  }
+
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const apiKey = process.env.CHAIBUILDER_APP_KEY;
@@ -228,7 +298,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
       }
 
-      const r = await platformFetch<{ pages: any[] }>(
+      const r = await platformFetch<{ pages: PlatformPage[] }>(
         `/api/builder/orgs/${orgId}/pages`,
         {
           actorUserId: auth.userId,
@@ -238,7 +308,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(r.body, { status: r.status });
     }
 
-    if (action === "platform.pages.get" || actionUpper === "GET_PAGE") {
+    if (action === "platform.pages.get") {
       const orgId = getOrgIdFromBody(body);
       const slug = getSlugFromBody(body);
 
@@ -246,7 +316,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
       }
 
-      const r = await platformFetch<{ page: any }>(
+      const r = await platformFetch<{ page: PlatformPage }>(
         `/api/builder/orgs/${orgId}/pages/${encodeURIComponent(slug)}`,
         {
           actorUserId: auth.userId,
@@ -274,38 +344,65 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "data is required" }, { status: 400 });
       }
 
-      const r = await platformFetch<{ page: any }>(
+      const normalizedData = normalizePageData(data);
+
+      const r = await platformFetch<{ page: PlatformPage }>(
         `/api/builder/orgs/${orgId}/pages`,
         {
           actorUserId: auth.userId,
           method: "POST",
-          body: { slug, title, data },
+          body: { slug, title, data: normalizedData },
         },
       );
 
       return NextResponse.json(r.body, { status: r.status });
     }
 
-    if (actionUpper === "UPDATE_PAGE") {
+    if (actionUpper === "GET_PAGE") {
       const orgId = getOrgIdFromBody(body);
-      const slug = getSlugFromBody(body);
-      const title = getTitleFromBody(body);
-      const data = getDataFromBody(body);
-
       if (!orgId) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
       }
 
-      if (data === null || data === undefined) {
+      const existing = await resolveExistingPage(orgId, auth.userId, body);
+
+      if (!existing) {
+        return NextResponse.json({ error: "Page not found" }, { status: 404 });
+      }
+
+      return NextResponse.json(
+        {
+          ok: true,
+          success: true,
+          page: existing,
+        },
+        { status: 200 },
+      );
+    }
+
+    if (actionUpper === "UPDATE_PAGE") {
+      const orgId = getOrgIdFromBody(body);
+      if (!orgId) {
+        return NextResponse.json({ error: "orgId is required" }, { status: 400 });
+      }
+
+      const existing = await resolveExistingPage(orgId, auth.userId, body);
+      const incomingData = getDataFromBody(body);
+
+      if (incomingData === null || incomingData === undefined) {
         return NextResponse.json({ error: "data is required" }, { status: 400 });
       }
 
-      const r = await platformFetch<{ page: any }>(
+      const normalizedData = normalizePageData(incomingData);
+      const slug = existing?.slug ?? getSlugFromBody(body);
+      const title = getTitleFromBody(body) ?? existing?.title ?? "Untitled";
+
+      const r = await platformFetch<{ page: PlatformPage }>(
         `/api/builder/orgs/${orgId}/pages`,
         {
           actorUserId: auth.userId,
           method: "POST",
-          body: { slug, title, data },
+          body: { slug, title, data: normalizedData },
         },
       );
 
@@ -322,23 +419,21 @@ export async function POST(req: NextRequest) {
 
     if (actionUpper === "CREATE_PAGE") {
       const orgId = getOrgIdFromBody(body);
-      const slug = getSlugFromBody(body);
-      const title = getTitleFromBody(body);
-      const data = getDataFromBody(body) ?? {};
-
       if (!orgId) {
         return NextResponse.json({ error: "orgId is required" }, { status: 400 });
       }
 
-      const normalizedData = {
-        ...data,
-        pageType: data?.pageType ?? "page",
-        lang: data?.lang ?? "en",
-        fallbackLang: data?.fallbackLang ?? "en",
-        blocks: Array.isArray(data?.blocks) ? data.blocks : [],
-      };
+      const slug = getSlugFromBody(body);
+      const title = getTitleFromBody(body) ?? "Untitled";
+      const incomingData = getDataFromBody(body) ?? {};
 
-      const r = await platformFetch<{ page: any }>(
+      const normalizedData = normalizePageData({
+        ...incomingData,
+        slug,
+        title,
+      });
+
+      const r = await platformFetch<{ page: PlatformPage }>(
         `/api/builder/orgs/${orgId}/pages`,
         {
           actorUserId: auth.userId,
