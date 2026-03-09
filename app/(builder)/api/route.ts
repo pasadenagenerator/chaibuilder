@@ -114,6 +114,37 @@ function normalizePageData(data: any): any {
   };
 }
 
+function makeChaiPageResponse(page: PlatformPage) {
+  const data = normalizePageData(page.data);
+
+  return {
+    ok: true,
+    success: true,
+
+    // najbolj očiten shape
+    page: {
+      ...page,
+      data,
+    },
+
+    // kompatibilnostni top-level fieldi
+    data,
+    id: data.id,
+    pageId: data.id,
+    slug: page.slug,
+    path: page.slug,
+    name: page.title ?? "Untitled",
+    title: page.title ?? "Untitled",
+    pageType: data.pageType ?? "page",
+    lang: data.lang ?? "en",
+    fallbackLang: data.fallbackLang ?? "en",
+    blocks: Array.isArray(data.blocks) ? data.blocks : [],
+
+    createdAt: page.createdAt ?? null,
+    updatedAt: page.updatedAt ?? null,
+  };
+}
+
 async function getUserIdFromCookieOrBearer(
   req: NextRequest,
 ): Promise<{
@@ -230,7 +261,9 @@ async function resolveExistingPage(
   const pages = await listPages(orgId, actorUserId);
 
   if (builderPageId) {
-    const byBuilderId = pages.find((p) => String(p?.data?.id ?? "").trim() === builderPageId);
+    const byBuilderId = pages.find(
+      (p) => String(p?.data?.id ?? "").trim() === builderPageId,
+    );
     if (byBuilderId) return byBuilderId;
   }
 
@@ -370,14 +403,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Page not found" }, { status: 404 });
       }
 
-      return NextResponse.json(
-        {
-          ok: true,
-          success: true,
-          page: existing,
-        },
-        { status: 200 },
-      );
+      return NextResponse.json(makeChaiPageResponse(existing), { status: 200 });
     }
 
     if (actionUpper === "UPDATE_PAGE") {
@@ -406,15 +432,16 @@ export async function POST(req: NextRequest) {
         },
       );
 
-      return NextResponse.json(
-        {
-          ok: r.status >= 200 && r.status < 300,
-          success: r.status >= 200 && r.status < 300,
-          page: (r.body as any)?.page ?? null,
-          ...(typeof r.body === "object" && r.body !== null ? r.body : {}),
-        },
-        { status: r.status },
-      );
+      const page = (r.body as any)?.page ?? null;
+
+      if (!page) {
+        return NextResponse.json(
+          { error: "Failed to save page" },
+          { status: r.status || 500 },
+        );
+      }
+
+      return NextResponse.json(makeChaiPageResponse(page), { status: r.status });
     }
 
     if (actionUpper === "CREATE_PAGE") {
@@ -442,15 +469,16 @@ export async function POST(req: NextRequest) {
         },
       );
 
-      return NextResponse.json(
-        {
-          ok: r.status >= 200 && r.status < 300,
-          success: r.status >= 200 && r.status < 300,
-          page: (r.body as any)?.page ?? null,
-          ...(typeof r.body === "object" && r.body !== null ? r.body : {}),
-        },
-        { status: r.status },
-      );
+      const page = (r.body as any)?.page ?? null;
+
+      if (!page) {
+        return NextResponse.json(
+          { error: "Failed to create page" },
+          { status: r.status || 500 },
+        );
+      }
+
+      return NextResponse.json(makeChaiPageResponse(page), { status: r.status });
     }
 
     if (actionUpper === "PUBLISH_CHANGES") {
