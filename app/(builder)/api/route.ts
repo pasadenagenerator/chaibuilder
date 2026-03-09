@@ -55,6 +55,7 @@ function getSlugFromBody(body: any): string {
       body?.path ??
       body?.pageSlug ??
       body?.page_path ??
+      body?.data?.slug ??
       "/",
   ).trim();
 
@@ -68,6 +69,7 @@ function getTitleFromBody(body: any): string | null {
     body?.name ??
     body?.pageTitle ??
     body?.data?.title ??
+    body?.data?.name ??
     null;
 
   if (value === null || value === undefined) return null;
@@ -304,6 +306,44 @@ export async function POST(req: NextRequest) {
           actorUserId: auth.userId,
           method: "POST",
           body: { slug, title, data },
+        },
+      );
+
+      return NextResponse.json(
+        {
+          ok: r.status >= 200 && r.status < 300,
+          success: r.status >= 200 && r.status < 300,
+          page: (r.body as any)?.page ?? null,
+          ...(typeof r.body === "object" && r.body !== null ? r.body : {}),
+        },
+        { status: r.status },
+      );
+    }
+
+    if (actionUpper === "CREATE_PAGE") {
+      const orgId = getOrgIdFromBody(body);
+      const slug = getSlugFromBody(body);
+      const title = getTitleFromBody(body);
+      const data = getDataFromBody(body) ?? {};
+
+      if (!orgId) {
+        return NextResponse.json({ error: "orgId is required" }, { status: 400 });
+      }
+
+      const normalizedData = {
+        ...data,
+        pageType: data?.pageType ?? "page",
+        lang: data?.lang ?? "en",
+        fallbackLang: data?.fallbackLang ?? "en",
+        blocks: Array.isArray(data?.blocks) ? data.blocks : [],
+      };
+
+      const r = await platformFetch<{ page: any }>(
+        `/api/builder/orgs/${orgId}/pages`,
+        {
+          actorUserId: auth.userId,
+          method: "POST",
+          body: { slug, title, data: normalizedData },
         },
       );
 
